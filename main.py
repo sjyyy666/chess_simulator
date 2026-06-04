@@ -20,6 +20,10 @@ ROW_IDX = 0
 COL_IDX = 1
 NEW_ROW_IDX = 3
 NEW_COL_IDX = 4
+BOARD_IDX = 0
+CONDITION_IDX = 1
+EN_PASS_IDX = 2
+ROUND_IDX = 3
 MAX_RAN = 8
 MIN_RAN = 1
 PLAYER_MOVEMENT = 1
@@ -41,12 +45,27 @@ CHECK = 'CHECK'
 CHECK_MATE = 'MATE!'
 SALE_MATE = 'SALEMATE!'
 MOVED = 'moved'
+ROUND_NUM = 'round num'
+EN_PASS_CON = 'En passant'
+CONDITIONS = 'conditions'
+BOARD = 'board'
+BOARD_AT_ROUND = 'The chess board of round '
+INVALID_ROUND = 'Please enter a valid round number'
+CONFIRM_CHANGE = 'Would you like to continue go back to round '
+CHOICE = ' Y/N?'
+YES = 'Y'
+NO = 'N'
+CHANGE_ROUND = 'reverse'
+ENTER_ROUND_NUM ='Please enter the round number you\'d like to reverse to'
+SUCCESS_CHANGE = 'Change successful!'
 WELCOME = "Welcome to chess game!"
 NEXT_MOVE = "Please enter your next movement: "
 HELP_STR_1 = "To move, you need to enter command as '12,34'"
 HELP_STR_2 = "12 means the piece you are trying to move is at row 1 colomn 2"
 HELP_STR_3 = "34 means you are trying to move the piece to row 3 colomn 4"
 HELP_STR_4 = "If you forget the format, type 'help'."
+HELP_STR_5 = "If you'd like to reverse to a specific round, type 'reverse'."
+ROUND = 'ROUND'
 INVALID_INPUT = "Invalid input. Try again."
 KING_RULE_EXPLAINATION = ' Usually, a king moves exactly one square adjacent to it.'
 QUEEN_RULE_EXPLAINATION = ' The queen moves any number of vacant squares horizontally, vertically, or diagonally.'
@@ -105,6 +124,55 @@ conditions = {' kw1 ': {'moved': 0},
 
 en_passant = {ROUND_LIST: [], PAWN_LIST: []}
 king_position = {WHITE: 0, BLACK: 0}
+memory = {ROUND_NUM: 0}
+
+# Memorize every success movement of player
+def memorize_movement(memory, round, board, conditions, en_passant):
+    curr_board = copy.deepcopy(board)
+    curr_condition = copy.deepcopy(conditions)
+    curr_en_pass = copy.deepcopy(en_passant)
+    new_memory = {BOARD: curr_board, CONDITIONS: curr_condition,\
+                                EN_PASS_CON: curr_en_pass}
+    memory[round] = new_memory
+    memory[ROUND_NUM] += 1
+    return
+
+# Print chess board of specific round.
+def view_memory(memory, past_round):
+    if past_round not in memory:
+        print(INVALID_ROUND)
+        return NOT_SUCCESS
+    
+    print(BOARD_AT_ROUND + f'{past_round}')
+    print_chess_board(memory[past_round][BOARD])
+    return SUCCESS
+
+# Go back to a specific round, delete memory afterwards
+def go_to_memory(memory, past_round):
+    if not view_memory(memory, past_round):
+        return NOT_SUCCESS
+    
+    continue_change = 0
+    while continue_change != YES and continue_change != NO:
+        continue_change = input(CONFIRM_CHANGE + f'{past_round}' + CHOICE)
+
+    if continue_change == YES:
+        memory_block = memory[past_round]
+        chess_board = copy.deepcopy(memory_block[BOARD])
+        conditions = copy.deepcopy(memory_block[CONDITIONS])
+        en_passant = copy.deepcopy(memory_block[EN_PASS_CON])
+        round = past_round + 1
+
+        for next_round in range(round, memory[ROUND_NUM]):
+            del memory[next_round]
+
+        memory[ROUND_NUM] = round
+        print(SUCCESS_CHANGE)
+        
+        return chess_board, conditions, en_passant, round
+
+    else:
+        return NOT_SUCCESS
 
 # Print chess board on terminal in a readable format.
 def print_chess_board(chess_board):
@@ -575,7 +643,26 @@ def help_func():
     print(HELP_STR_2)
     print(HELP_STR_3)
     print(HELP_STR_4)
+    print(HELP_STR_5)
     return
+
+# Check if input are valid, process raw input.
+def valid_input(raw_position):
+    ini_row = raw_position[ROW_IDX]
+    ini_col = raw_position[COL_IDX]
+    new_row = raw_position[NEW_ROW_IDX]
+    new_col = raw_position[NEW_COL_IDX]
+
+    if not (ini_row.isdigit() and ini_col.isdigit()\
+            and new_row.isdigit() and new_col.isdigit()):
+        return NOT_SUCCESS
+
+    ini_row = int(ini_row)
+    ini_col = int(ini_col)
+    new_row = int(new_row)
+    new_col = int(new_col)
+
+    return ini_row, ini_col, EMPTY, new_row, new_col
 
 # Find all potential positions of the pieces from the specific side.
 def find_potential_positions(board, side, round, simulate_movement):
@@ -653,6 +740,7 @@ def opposite_side(side):
 
 king_alive = 1
 round = 1
+memorize_movement(memory, round, chess_board, conditions, en_passant)
 print(WELCOME)
 print_chess_board(chess_board)
 update_king_position(king_position, chess_board)
@@ -663,31 +751,55 @@ while king_alive:
     if raw_position == HELP:
         help_func()
         continue
-    if len(raw_position) != 5:
+    elif raw_position == CHANGE_ROUND:
+        round_num = input(ENTER_ROUND_NUM)
+        if not round_num.isdigit():
+            print(INVALID_ROUND)
+            continue
+        round_num = int(round_num)
+
+        new = go_to_memory(memory, round_num)
+        if new:
+            chess_board = new[BOARD_IDX]
+            conditions = new[CONDITION_IDX]
+            en_passant = new[EN_PASS_IDX]
+            round = new[ROUND_IDX]
+            print_chess_board(chess_board)
+
+    elif len(raw_position) != 5:
         print(INVALID_INPUT)
         continue
 
-    ini_row = int(raw_position[ROW_IDX])
-    ini_col = int(raw_position[COL_IDX])
-    new_row = int(raw_position[NEW_ROW_IDX])
-    new_col = int(raw_position[NEW_COL_IDX])
-
-    piece = chess_board[ini_row][ini_col]
-    if (not valid_position(ini_row, ini_col)) or \
-        (not valid_position(new_row, new_col)):
-        continue
-
-    out = movement_successful(ini_row, ini_col, new_row, new_col,\
-            chess_board, round, SIMULATE_MOVEMENT, PLAYER_MOVEMENT)
-    
-    if  out != SUCCESS:
-        print_failure_rule(out)
-        continue
     else:
-        process_movement(ini_row, ini_col, new_row, new_col, chess_board)
-        print_chess_board(chess_board)
+        input_positions = valid_input(raw_position)
 
-        king_alive = check_or_check_mate(new_row, new_col, round)
+        if not input_positions:
+            print(INVALID_INPUT)
+            continue
+        else:
+            ini_row = input_positions[ROW_IDX]
+            ini_col = input_positions[COL_IDX]
+            new_row = input_positions[NEW_ROW_IDX]
+            new_col = input_positions[NEW_COL_IDX]
 
-        round += 1
+        if (not valid_position(ini_row, ini_col)) or \
+            (not valid_position(new_row, new_col)):
+            continue
 
+        piece = chess_board[ini_row][ini_col]
+
+        out = movement_successful(ini_row, ini_col, new_row, new_col,\
+                chess_board, round, SIMULATE_MOVEMENT, PLAYER_MOVEMENT)
+        
+        if  out != SUCCESS:
+            print_failure_rule(out)
+            continue
+        else:
+            process_movement(ini_row, ini_col, new_row, new_col, chess_board)
+            print(ROUND + f'{round}')
+            print_chess_board(chess_board)
+
+            king_alive = check_or_check_mate(new_row, new_col, round)
+            memorize_movement(memory, round, chess_board, conditions,\
+                            en_passant)
+            round += 1
